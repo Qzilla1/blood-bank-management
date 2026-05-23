@@ -4,7 +4,7 @@
             <div class="row align-items-center justify-content-between g-3">
                 <div class="col-md-auto">
                     <p class="text-muted mb-0 font-monospace" style="font-size: 13px;">
-                        &copy; 2026 <span class="text-light fw-bold">Lifeline Bank</span>. Developed for Full Stack Coursework.
+                        &copy; 2026 <span class="text-light fw-bold">Lifeline Bank</span>. Developed By Qasim Zaheer .
                     </p>
                 </div>
                 <div class="col-md-auto">
