@@ -1,7 +1,7 @@
 <?php
 /**
- * Admin Login Page
- * Handles session creation and authentication of administrative accounts.
+ * Login Page
+ * Handles session creation and authentication for both admins and users.
  */
 
 // Enable session
@@ -42,37 +42,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = "Please enter both username and password.";
     } else {
+
+        // ── 1. Check ADMINS table ─────────────────────────────────────────
         try {
             $stmt = $pdo->prepare("SELECT * FROM admins WHERE username = :user LIMIT 1");
             $stmt->execute([':user' => $username]);
             $admin = $stmt->fetch();
 
-            // Self-healing database safeguard for seeded legacy/truncated hashes
             $isCorrectLegacyHash = ($admin['password'] === '$2y$10$wL4P9qW.3aXskh/V/XW.c.f6R6N/15vR/8sS322c3q251d5s2f3f' && $password === 'admin123');
 
-            // Verify using modern secure hashing (BCrypt) or fallback legacy validator
             if ($admin && (password_verify($password, $admin['password']) || $isCorrectLegacyHash)) {
-                // If authenticated via legacy seed hash, instantly re-hash and heal the database record securely!
+                // Re-hash legacy password
                 if ($isCorrectLegacyHash) {
                     $healedHash = password_hash('admin123', PASSWORD_BCRYPT);
                     $healStmt = $pdo->prepare("UPDATE admins SET password = :newPass WHERE id = :id");
                     $healStmt->execute([':newPass' => $healedHash, ':id' => $admin['id']]);
                 }
 
-                // Set session variables
+                // Set admin session
                 $_SESSION['admin_logged_in'] = true;
-                $_SESSION['admin_id'] = $admin['id'];
-                $_SESSION['admin_username'] = $admin['username'];
-                $_SESSION['admin_fullname'] = $admin['fullname'];
+                $_SESSION['admin_id']        = $admin['id'];
+                $_SESSION['admin_username']  = $admin['username'];
+                $_SESSION['admin_fullname']  = $admin['fullname'];
+                $_SESSION['user_id']         = $admin['id'];
+                $_SESSION['user_name']       = $admin['fullname'];
+                $_SESSION['user_role']       = 'admin';
                 $_SESSION['success_message'] = "Welcome back, " . htmlspecialchars($admin['fullname']) . "! Login successful.";
 
                 header("Location: index.php");
                 exit();
-            } else {
-                $error = "Invalid username or password.";
             }
         } catch (PDOException $e) {
-            $error = "Database error encountered during login. Please ensure tables are created.";
+            $error = "Database error during admin login.";
+        }
+
+        // ── 2. Check USERS table ──────────────────────────────────────────
+        if (empty($error)) {
+            try {
+                $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
+                $stmt->execute([':email' => $username]);
+                $user = $stmt->fetch();
+
+                if ($user && password_verify($password, $user['password'])) {
+                    // Set user session
+                    $_SESSION['user_id']   = $user['id'];
+                    $_SESSION['user_name'] = $user['name'];
+                    $_SESSION['user_role'] = 'user';
+
+                    header("Location: user/dashboard.php");
+                    exit();
+                } else {
+                    $error = "Invalid username or password.";
+                }
+            } catch (PDOException $e) {
+                $error = "Database error during user login.";
+            }
         }
     }
 }
@@ -82,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login - Blood Bank System</title>
+    <title>Login - Blood Bank System</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Bootstrap 5 CDN -->
@@ -113,7 +137,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             overflow-x: hidden;
         }
 
-        /* Abstract dynamic background blobs */
         .bg-blob {
             position: absolute;
             border-radius: 50%;
@@ -151,7 +174,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             100% { transform: translate(-80px, -120px) scale(1.1); }
         }
 
-        /* Glassmorphism Card */
         .login-card {
             background: var(--glass-bg);
             backdrop-filter: blur(25px);
@@ -173,17 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .card-glow-overlay {
             position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
             border-radius: 22px;
             background: linear-gradient(135deg, var(--accent-crimson), transparent, transparent, rgba(59, 130, 246, 0.5));
             z-index: -2;
             opacity: 0.3;
         }
 
-        /* Animated Logo */
         .brand-logo-container {
             width: 70px;
             height: 70px;
@@ -282,10 +300,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 0 12px rgba(255, 71, 87, 0.15);
         }
 
-        .form-control-custom:focus + i {
-            color: var(--accent-crimson);
-        }
-
         .form-control-custom::placeholder {
             color: rgba(255, 255, 255, 0.25);
         }
@@ -314,7 +328,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transform: translateY(1px);
         }
 
-        /* Diagnostic credentials tip */
         .credentials-tip {
             margin-top: 24px;
             background: rgba(255, 255, 255, 0.02);
@@ -325,6 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: var(--text-secondary);
             text-align: center;
         }
+
         .credentials-tip strong {
             color: var(--accent-crimson);
         }
@@ -341,6 +355,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             align-items: center;
             gap: 10px;
         }
+
+        /* NEW: Register link style */
+        .register-link {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .register-link a {
+            color: var(--accent-crimson);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .register-link a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -351,27 +383,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="login-card">
         <div class="card-glow-overlay"></div>
-        
+
         <div class="brand-logo-container">
             <i class="fa-solid fa-droplet"></i>
         </div>
 
         <h2>Lifeline Bank</h2>
-        <div class="subtitle">Administrative Portal Management</div>
+        <div class="subtitle">Login as Admin or User</div>
 
         <?php if (!empty($error)): ?>
-            <div class="alert-custom animate__animated animate__fadeIn">
+            <div class="alert-custom">
                 <i class="fa-solid fa-triangle-exclamation"></i>
                 <div><?php echo htmlspecialchars($error); ?></div>
             </div>
         <?php endif; ?>
 
         <?php if (isset($_SESSION['error_message'])): ?>
-            <div class="alert-custom animate__animated animate__fadeIn">
+            <div class="alert-custom">
                 <i class="fa-solid fa-shield-halved"></i>
                 <div>
-                    <?php 
-                        echo htmlspecialchars($_SESSION['error_message']); 
+                    <?php
+                        echo htmlspecialchars($_SESSION['error_message']);
                         unset($_SESSION['error_message']);
                     ?>
                 </div>
@@ -380,9 +412,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <form action="login.php" method="POST" autocomplete="off">
             <div class="form-group">
-                <label class="form-label">Username</label>
+                <label class="form-label">Username or Email</label>
                 <div class="input-group-custom">
-                    <input type="text" name="username" class="form-control-custom" placeholder="Enter username" required value="<?php echo isset($username) ? htmlspecialchars($username) : ''; ?>">
+                    <input type="text" name="username" class="form-control-custom"
+                           placeholder="Admin username or user email" required
+                           value="<?php echo isset($username) ? htmlspecialchars($username) : ''; ?>">
                     <i class="fa-regular fa-user"></i>
                 </div>
             </div>
@@ -390,7 +424,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-group">
                 <label class="form-label">Password</label>
                 <div class="input-group-custom">
-                    <input type="password" name="password" class="form-control-custom" placeholder="Enter password" required>
+                    <input type="password" name="password" class="form-control-custom"
+                           placeholder="Enter password" required>
                     <i class="fa-solid fa-lock"></i>
                 </div>
             </div>
@@ -400,8 +435,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </button>
         </form>
 
+        <!-- NEW: Register link for new users -->
+        <div class="register-link">
+            New here?
+            <a href="register.php">Create a user account</a>
+        </div>
+
         <div class="credentials-tip">
-            <i class="fa-solid fa-key me-1"></i> Default Credentials:<br>
+            <i class="fa-solid fa-key me-1"></i> Admin Credentials:<br>
             Username: <strong>admin</strong> | Password: <strong>admin123</strong>
         </div>
     </div>
