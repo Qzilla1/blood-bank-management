@@ -1,5 +1,6 @@
 -- Blood Bank Management System Database Schema
 -- Created on: 22nd May 2026
+-- Created By: Qasim Zaheer
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -10,9 +11,7 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
--- Create Database if not exists (User can run this in phpMyAdmin)
--- CREATE DATABASE IF NOT EXISTS `blood_bank`;
--- USE `blood_bank`;
+
 
 -- --------------------------------------------------------
 
